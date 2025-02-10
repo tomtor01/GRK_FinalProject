@@ -89,6 +89,7 @@ glm::mat4 createPerspectiveMatrix()
 	perspectiveMatrix=glm::transpose(perspectiveMatrix);
 
 	return perspectiveMatrix;
+
 }
 
 void drawObjectColor(Core::RenderContext& context, glm::mat4 modelMatrix, glm::vec3 color) {
