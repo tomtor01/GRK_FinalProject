@@ -72,8 +72,12 @@
     <Image Include="textures\sun.jpg" />
   </ItemGroup>
   <ItemGroup>
-    <Object Include="models\spaceship.obj" />
-    <Object Include="models\sphere.obj" />
+    <Object Include="models\spaceship.obj">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </Object>
+    <Object Include="models\sphere.obj">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
+    </Object>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{F2FC2E8F-CBA6-49D7-8B73-4BFBCB64D310}</ProjectGuid>
