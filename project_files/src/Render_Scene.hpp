@@ -1,9 +1,10 @@
-#include "glew.h"
+﻿#include "glew.h"
 #include <GLFW/glfw3.h>
 #include "glm.hpp"
 #include "ext.hpp"
 #include <iostream>
 #include <cmath>
+#include <cfloat>
 
 #include "Shader_Loader.h"
 #include "Render_Utils.h"
@@ -44,15 +45,20 @@ Core::Shader_Loader shaderLoader;
 Core::RenderContext shipContext;
 Core::RenderContext sphereContext;
 
-glm::vec3 cameraPos = glm::vec3(-4.f, 0, 0);
+glm::vec3 cameraPos = glm::vec3(-8.f, 0, 0);
 glm::vec3 cameraDir = glm::vec3(1.f, 0.f, 0.f);
 
-glm::vec3 spaceshipPos = glm::vec3(-4.f, 0, 0);
+glm::vec3 spaceshipPos = glm::vec3(-8.f, 0, 0);
 glm::vec3 spaceshipDir = glm::vec3(1.f, 0.f, 0.f);
 GLuint VAO,VBO;
 
 float aspectRatio = 1.f;
 Skybox* skybox = nullptr;
+
+struct AABB {
+	glm::vec3 min;
+	glm::vec3 max;
+};
 
 glm::mat4 createCameraMatrix()
 {
@@ -72,7 +78,6 @@ glm::mat4 createCameraMatrix()
 
 glm::mat4 createPerspectiveMatrix()
 {
-	
 	glm::mat4 perspectiveMatrix;
 	float n = 0.05;
 	float f = 20.;
@@ -85,15 +90,13 @@ glm::mat4 createPerspectiveMatrix()
 		0.,0.,-1.,0.,
 		});
 
-	
 	perspectiveMatrix=glm::transpose(perspectiveMatrix);
 
 	return perspectiveMatrix;
-
 }
 
-void drawObjectColor(Core::RenderContext& context, glm::mat4 modelMatrix, glm::vec3 color) {
-
+void drawObjectColor(Core::RenderContext& context, glm::mat4 modelMatrix, glm::vec3 color) 
+{
 	glUseProgram(program);
 	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
 	glm::mat4 transformation = viewProjectionMatrix * modelMatrix;
@@ -103,7 +106,9 @@ void drawObjectColor(Core::RenderContext& context, glm::mat4 modelMatrix, glm::v
 	glUniform3f(glGetUniformLocation(program, "lightPos"), 0,0,0);
 	Core::DrawContext(context);
 }
-void drawObjectTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint textureID) {
+
+void drawObjectTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint textureID) 
+{
 	glUseProgram(programTex);
 	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
 	glm::mat4 transformation = viewProjectionMatrix * modelMatrix;
@@ -133,28 +138,80 @@ void drawSunTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint 
 	glUseProgram(0);
 }
 
-void renderScene(GLFWwindow* window)
+glm::mat4 computeShipRotationMatrix() {
+	// Oblicz wektory orientacji statku
+	glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
+	glm::vec3 spaceshipUp = glm::normalize(glm::cross(spaceshipSide, spaceshipDir));
+	// Ustawiamy "przód" statku jako spaceshipDir (bez ujemnego znaku)
+	glm::mat4 rotationMatrix = glm::mat4({
+		spaceshipSide.x, spaceshipSide.y, spaceshipSide.z, 0.f,
+		spaceshipUp.x,   spaceshipUp.y,   spaceshipUp.z,   0.f,
+		spaceshipDir.x,  spaceshipDir.y,  spaceshipDir.z,  0.f,
+		0.f,             0.f,             0.f,             1.f
+		});
+	// Transponujemy, bo GLM domyślnie używa kolumnowego układu pamięci
+	return glm::transpose(rotationMatrix);
+}
+
+AABB computeTransformedAABB(const AABB& localBox, const glm::mat4& modelMatrix) {
+	glm::vec3 corners[8] = {
+		glm::vec3(localBox.min.x, localBox.min.y, localBox.min.z),
+		glm::vec3(localBox.max.x, localBox.min.y, localBox.min.z),
+		glm::vec3(localBox.min.x, localBox.max.y, localBox.min.z),
+		glm::vec3(localBox.min.x, localBox.min.y, localBox.max.z),
+		glm::vec3(localBox.max.x, localBox.max.y, localBox.min.z),
+		glm::vec3(localBox.min.x, localBox.max.y, localBox.max.z),
+		glm::vec3(localBox.max.x, localBox.min.y, localBox.max.z),
+		localBox.max
+	};
+
+	AABB worldBox;
+	worldBox.min = glm::vec3(FLT_MAX);
+	worldBox.max = glm::vec3(-FLT_MAX);
+	for (int i = 0; i < 8; ++i) {
+		glm::vec3 transformed = glm::vec3(modelMatrix * glm::vec4(corners[i], 1.0f));
+		worldBox.min = glm::min(worldBox.min, transformed);
+		worldBox.max = glm::max(worldBox.max, transformed);
+	}
+	return worldBox;
+}
+
+bool checkAABBCollision(const AABB& a, const AABB& b) {
+	return (a.min.x <= b.max.x && a.max.x >= b.min.x) &&
+		(a.min.y <= b.max.y && a.max.y >= b.min.y) &&
+		(a.min.z <= b.max.z && a.max.z >= b.min.z);
+}
+
+void renderScene(GLFWwindow* window, float currentTime)
 {
 	glClearColor(0.0f, 0.3f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	glm::mat4 transformation;
-	float time = glfwGetTime();
-
-	drawObjectTexture(sphereContext, glm::mat4(), texture::ship);
-
-	drawObjectTexture(sphereContext, glm::eulerAngleY(time / 3) * glm::translate(glm::vec3(4.f, 0, 0)) * glm::scale(glm::vec3(0.3f)), texture::earth);
 
 	drawObjectTexture(sphereContext,
-		glm::eulerAngleY(time / 3) * glm::translate(glm::vec3(4.f, 0, 0)) * glm::eulerAngleY(time) * glm::translate(glm::vec3(1.f, 0, 0)) * glm::scale(glm::vec3(0.1f)), texture::moon);
+		glm::eulerAngleY(currentTime / 3) *
+		glm::translate(glm::vec3(4.f, 0, 0)) *
+		glm::scale(glm::vec3(0.3f)),
+		texture::earth);
 
-	glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
+	drawObjectTexture(sphereContext,
+		glm::eulerAngleY(currentTime / 3) *
+		glm::translate(glm::vec3(4.f, 0, 0)) *
+		glm::eulerAngleY(currentTime) *
+		glm::translate(glm::vec3(1.f, 0, 0)) *
+		glm::scale(glm::vec3(0.1f)),
+		texture::moon);
+
+	/*glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
 	glm::vec3 spaceshipUp = glm::normalize(glm::cross(spaceshipSide, spaceshipDir));
 	glm::mat4 specshipCameraRotrationMatrix = glm::mat4({
 		spaceshipSide.x,spaceshipSide.y,spaceshipSide.z,0,
 		spaceshipUp.x,spaceshipUp.y,spaceshipUp.z ,0,
 		-spaceshipDir.x,-spaceshipDir.y,-spaceshipDir.z,0,
 		0.,0.,0.,1.,
-		});
+		});*/
+	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
+	glm::mat4 shipModel = glm::translate(spaceshipPos) * shipRotationMatrix;
+	drawObjectTexture(shipContext, shipModel, texture::ship);
 
 	glm::mat4 sunModelMatrix = glm::translate(glm::vec3(0.f, 0.f, 0.f)) * glm::scale(glm::vec3(1.5f));
 	drawSunTexture(sphereContext, sunModelMatrix, texture::sun);
@@ -163,10 +220,10 @@ void renderScene(GLFWwindow* window)
 		glm::translate(cameraPos + 1.5 * cameraDir + cameraUp * -0.5f) * inveseCameraRotrationMatrix * glm::eulerAngleY(glm::pi<float>()),
 		glm::vec3(0.3, 0.3, 0.5)
 		);*/
-	drawObjectTexture(shipContext,
+	/*drawObjectTexture(shipContext,
 		glm::translate(spaceshipPos) * specshipCameraRotrationMatrix * glm::eulerAngleY(glm::pi<float>()),
 		texture::ship
-	);
+	);*/
 
 	// Disable writing to the depth buffer so the skybox doesn't overwrite depth values
 	glDepthMask(GL_FALSE);
@@ -215,11 +272,13 @@ void renderScene(GLFWwindow* window)
 	glUseProgram(0);
 	glfwSwapBuffers(window);
 }
+
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
 	aspectRatio = width / float(height);
 	glViewport(0, 0, width, height);
 }
+
 void loadModelToContext(std::string path, Core::RenderContext& context)
 {
 	Assimp::Importer import;
@@ -265,6 +324,102 @@ void init(GLFWwindow* window)
 	skybox = new Skybox(skyboxFaces);
 }
 
+//obsluga wejscia
+void processInput(GLFWwindow* window, float currentTime)
+{
+	glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
+	glm::vec3 spaceshipUp = glm::vec3(0.f, 1.f, 0.f);
+	float angleSpeed = 0.0025f;
+	float moveSpeed = 0.005f;
+
+	// Używamy zmiennej pomocniczej proposedPos, zaczynając od aktualnej pozycji
+	glm::vec3 proposedPos = spaceshipPos;
+
+	// Uaktualniamy proposedPos odpowiadająco do wejścia
+	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
+		proposedPos += spaceshipDir * moveSpeed;
+	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
+		proposedPos -= spaceshipDir * moveSpeed;
+	if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
+		proposedPos += spaceshipSide * moveSpeed;
+	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS)
+		proposedPos -= spaceshipSide * moveSpeed;
+	if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
+		proposedPos += spaceshipUp * moveSpeed;
+	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
+		proposedPos -= spaceshipUp * moveSpeed;
+
+	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
+		spaceshipDir = glm::vec3(glm::eulerAngleY(angleSpeed) * glm::vec4(spaceshipDir, 0));
+	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
+		spaceshipDir = glm::vec3(glm::eulerAngleY(-angleSpeed) * glm::vec4(spaceshipDir, 0));
+
+	// Ustal lokalny AABB dla statku
+	AABB sphereLocalBox;
+	sphereLocalBox.min = glm::vec3(-1.0f);
+	sphereLocalBox.max = glm::vec3(1.0f);
+
+	// Dla Ziemi – używamy właściwej skali modelu zamiast [-1,1]  
+	AABB earthLocalBox;
+	earthLocalBox.min = glm::vec3(-0.3f);
+	earthLocalBox.max = glm::vec3(0.3f);
+
+	// Dla Księżyca – analogicznie, jeśli model jest skalowany do 0.1
+	AABB moonLocalBox;
+	moonLocalBox.min = glm::vec3(-0.1f);
+	moonLocalBox.max = glm::vec3(0.1f);
+
+	AABB sunLocalBox;
+	sunLocalBox.min = glm::vec3(-0.5f);
+	sunLocalBox.max = glm::vec3(0.5f);
+
+	// Obliczamy modele dla obiektów, z którymi sprawdzamy kolizję
+	// Dla Ziemi – używamy tej samej kolejności co przy renderowaniu
+	glm::mat4 earthModel = glm::eulerAngleY(currentTime / 3) *
+		glm::translate(glm::vec3(4.f, 0, 0)) *
+		glm::scale(glm::vec3(0.3f));
+	AABB earthAABB = computeTransformedAABB(earthLocalBox, earthModel);
+
+	// Dla Księżyca
+	glm::mat4 moonModel = glm::eulerAngleY(currentTime / 3) *
+		glm::translate(glm::vec3(4.f, 0, 0)) *
+		glm::eulerAngleY(currentTime) *
+		glm::translate(glm::vec3(1.f, 0, 0)) *
+		glm::scale(glm::vec3(0.1f));
+	AABB moonAABB = computeTransformedAABB(moonLocalBox, moonModel);
+
+	// Dla Słońca
+	glm::mat4 sunModel = glm::translate(glm::vec3(0.f, 0.f, 0.f)) * glm::scale(glm::vec3(1.5f));
+	AABB sunAABB = computeTransformedAABB(sunLocalBox, sunModel);
+
+	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
+	glm::mat4 proposedShipModel = shipRotationMatrix * glm::translate(proposedPos);
+	AABB shipAABB = computeTransformedAABB(sphereLocalBox, proposedShipModel);
+
+	glm::vec3 delta = proposedPos - spaceshipPos;
+
+	bool collision = checkAABBCollision(shipAABB, earthAABB) ||
+		checkAABBCollision(shipAABB, moonAABB) ||
+		checkAABBCollision(shipAABB, sunAABB);
+
+	if (collision) {
+		if (glm::dot(delta, spaceshipDir) < 0.0f) {
+			spaceshipPos = proposedPos;
+		}
+		else {
+			std::cout << "Kolizja - ruch zablokowany!" << std::endl;
+		}
+	}
+	else {
+		spaceshipPos = proposedPos;
+	}
+
+	cameraPos = spaceshipPos - 1.5f * spaceshipDir + glm::vec3(0.f, 1.f, 0.f) * 0.5f;
+	cameraDir = glm::normalize(spaceshipPos - cameraPos);
+
+	initBoids(50, 1000, 1000);
+}
+
 void shutdown(GLFWwindow* window)
 {
 	if (skybox) {
@@ -275,47 +430,13 @@ void shutdown(GLFWwindow* window)
 	shaderLoader.DeleteProgram(program);
 }
 
-//obsluga wejscia
-void processInput(GLFWwindow* window)
-{
-	glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
-	glm::vec3 spaceshipUp = glm::vec3(0.f, 1.f, 0.f);
-	float angleSpeed = 0.05f;
-	float moveSpeed = 0.025f;
-	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
-		glfwSetWindowShouldClose(window, true);
-	}
-	if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-		spaceshipPos += spaceshipDir * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-		spaceshipPos -= spaceshipDir * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS)
-		spaceshipPos += spaceshipSide * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS)
-		spaceshipPos -= spaceshipSide * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS)
-		spaceshipPos += spaceshipUp * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS)
-		spaceshipPos -= spaceshipUp * moveSpeed;
-	if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-		spaceshipDir = glm::vec3(glm::eulerAngleY(angleSpeed) * glm::vec4(spaceshipDir, 0));
-	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-		spaceshipDir = glm::vec3(glm::eulerAngleY(-angleSpeed) * glm::vec4(spaceshipDir, 0));
-
-	cameraPos = spaceshipPos - 1.5 * spaceshipDir + glm::vec3(0, 1, 0) * 0.5f;
-	cameraDir = spaceshipDir;
-
-	initBoids(50, 1000, 1000);
-
-}
-
 // funkcja jest glowna petla
 void renderLoop(GLFWwindow* window) {
 	while (!glfwWindowShouldClose(window))
 	{
-		processInput(window);
-
-		renderScene(window);
+		float currentTime = glfwGetTime();  // Pobieramy czas raz na początku pętli
+		processInput(window, currentTime);
+		renderScene(window, currentTime);
 		glfwPollEvents();
 	}
 }
