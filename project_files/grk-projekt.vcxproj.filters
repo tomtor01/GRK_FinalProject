@@ -118,14 +118,18 @@
     <None Include="shaders\shader_5_1_tex.frag">
       <Filter>Shader Files</Filter>
     </None>
-    <None Include="shaders\shader_skybox.vert" />
-    <None Include="shaders\shader_skybox.frag" />
     <None Include="assimp-vc141-mt.dll" />
     <None Include="assimp-vc141-mtd.dll" />
     <None Include="freeglut.dll" />
     <None Include="glew32.dll" />
     <None Include="zlib.dll" />
     <None Include="zlibd.dll" />
+    <None Include="shaders\shader_skybox.frag">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="shaders\shader_skybox.vert">
+      <Filter>Shader Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Image Include="textures\earth.png">

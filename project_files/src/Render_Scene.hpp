@@ -176,6 +176,27 @@ AABB computeTransformedAABB(const AABB& localBox, const glm::mat4& modelMatrix) 
 	return worldBox;
 }
 
+glm::vec3 computeMTV(const AABB& a, const AABB& b) {
+	// Compute overlap distances on each axis.
+	float overlapX = std::min(a.max.x, b.max.x) - std::max(a.min.x, b.min.x);
+	float overlapY = std::min(a.max.y, b.max.y) - std::max(a.min.y, b.min.y);
+	float overlapZ = std::min(a.max.z, b.max.z) - std::max(a.min.z, b.min.z);
+
+	// Choose the axis with the smallest penetration.
+	float minOverlap = overlapX;
+	glm::vec3 mtv((a.min.x < b.min.x) ? -overlapX : overlapX, 0.0f, 0.0f);
+
+	if (overlapY < minOverlap) {
+		minOverlap = overlapY;
+		mtv = glm::vec3(0.0f, (a.min.y < b.min.y) ? -overlapY : overlapY, 0.0f);
+	}
+	if (overlapZ < minOverlap) {
+		minOverlap = overlapZ;
+		mtv = glm::vec3(0.0f, 0.0f, (a.min.z < b.min.z) ? -overlapZ : overlapZ);
+	}
+	return mtv;
+}
+
 bool checkAABBCollision(const AABB& a, const AABB& b) {
 	return (a.min.x <= b.max.x && a.max.x >= b.min.x) &&
 		(a.min.y <= b.max.y && a.max.y >= b.min.y) &&
@@ -201,29 +222,12 @@ void renderScene(GLFWwindow* window, float currentTime)
 		glm::scale(glm::vec3(0.1f)),
 		texture::moon);
 
-	/*glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
-	glm::vec3 spaceshipUp = glm::normalize(glm::cross(spaceshipSide, spaceshipDir));
-	glm::mat4 specshipCameraRotrationMatrix = glm::mat4({
-		spaceshipSide.x,spaceshipSide.y,spaceshipSide.z,0,
-		spaceshipUp.x,spaceshipUp.y,spaceshipUp.z ,0,
-		-spaceshipDir.x,-spaceshipDir.y,-spaceshipDir.z,0,
-		0.,0.,0.,1.,
-		});*/
 	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
 	glm::mat4 shipModel = glm::translate(spaceshipPos) * shipRotationMatrix;
 	drawObjectTexture(shipContext, shipModel, texture::ship);
 
 	glm::mat4 sunModelMatrix = glm::translate(glm::vec3(0.f, 0.f, 0.f)) * glm::scale(glm::vec3(1.5f));
 	drawSunTexture(sphereContext, sunModelMatrix, texture::sun);
-
-	/*drawObjectColor(shipContext,
-		glm::translate(cameraPos + 1.5 * cameraDir + cameraUp * -0.5f) * inveseCameraRotrationMatrix * glm::eulerAngleY(glm::pi<float>()),
-		glm::vec3(0.3, 0.3, 0.5)
-		);*/
-	/*drawObjectTexture(shipContext,
-		glm::translate(spaceshipPos) * specshipCameraRotrationMatrix * glm::eulerAngleY(glm::pi<float>()),
-		texture::ship
-	);*/
 
 	// Disable writing to the depth buffer so the skybox doesn't overwrite depth values
 	glDepthMask(GL_FALSE);
@@ -361,8 +365,8 @@ void processInput(GLFWwindow* window, float currentTime)
 
 	// Dla Ziemi – używamy właściwej skali modelu zamiast [-1,1]  
 	AABB earthLocalBox;
-	earthLocalBox.min = glm::vec3(-0.3f);
-	earthLocalBox.max = glm::vec3(0.3f);
+	earthLocalBox.min = glm::vec3(-0.1f);
+	earthLocalBox.max = glm::vec3(0.1f);
 
 	// Dla Księżyca – analogicznie, jeśli model jest skalowany do 0.1
 	AABB moonLocalBox;
@@ -393,7 +397,7 @@ void processInput(GLFWwindow* window, float currentTime)
 	AABB sunAABB = computeTransformedAABB(sunLocalBox, sunModel);
 
 	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
-	glm::mat4 proposedShipModel = shipRotationMatrix * glm::translate(proposedPos);
+	glm::mat4 proposedShipModel = glm::translate(proposedPos) * shipRotationMatrix;
 	AABB shipAABB = computeTransformedAABB(sphereLocalBox, proposedShipModel);
 
 	glm::vec3 delta = proposedPos - spaceshipPos;
@@ -409,6 +413,23 @@ void processInput(GLFWwindow* window, float currentTime)
 		else {
 			std::cout << "Kolizja - ruch zablokowany!" << std::endl;
 		}
+	}
+	else {
+		spaceshipPos = proposedPos;
+	}
+
+	glm::vec3 correction(0.f);
+	if (checkAABBCollision(shipAABB, earthAABB)) {
+		correction += computeMTV(shipAABB, earthAABB);
+	}
+	if (checkAABBCollision(shipAABB, moonAABB)) {
+		correction += computeMTV(shipAABB, moonAABB);
+	}
+
+	if (glm::length(correction) > 0.f) {
+		spaceshipPos += correction;
+		std::cout << "Collision resolved, correction applied: ("
+			<< correction.x << ", " << correction.y << ", " << correction.z << ")\n";
 	}
 	else {
 		spaceshipPos = proposedPos;
@@ -434,7 +455,7 @@ void shutdown(GLFWwindow* window)
 void renderLoop(GLFWwindow* window) {
 	while (!glfwWindowShouldClose(window))
 	{
-		float currentTime = glfwGetTime();  // Pobieramy czas raz na początku pętli
+		float currentTime = glfwGetTime();
 		processInput(window, currentTime);
 		renderScene(window, currentTime);
 		glfwPollEvents();
