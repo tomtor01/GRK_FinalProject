@@ -1,4 +1,3 @@
-#ifndef SKYBOX_HPP
 #define SKYBOX_HPP
 
 #include <vector>
@@ -21,5 +20,3 @@ private:
     bool loadCubemap(const std::vector<std::string>& faces);
     bool loadShaders();
 };
-
-#endif

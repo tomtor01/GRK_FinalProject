@@ -98,6 +98,9 @@
     <ClInclude Include="src\Skybox.hpp">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\Model_Loader.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="shaders\shader_sun.frag">
@@ -172,6 +175,27 @@
       <Filter>Resource Files</Filter>
     </Image>
     <Image Include="textures\spaceship.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\skybox\DaylightBox_Back.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\skybox\DaylightBox_Bottom.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\skybox\DaylightBox_Front.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\skybox\DaylightBox_Left.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\skybox\DaylightBox_Right.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\skybox\DaylightBox_Top.bmp">
+      <Filter>Resource Files</Filter>
+    </Image>
+    <Image Include="textures\ground.png">
       <Filter>Resource Files</Filter>
     </Image>
   </ItemGroup>

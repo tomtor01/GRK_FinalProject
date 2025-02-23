@@ -12,6 +12,7 @@
 
 #include "Camera.h"
 #include "Boids.hpp"
+#include "Model_Loader.hpp"
 #include "Box.cpp"
 #include "Skybox.hpp"
 #include <assimp/Importer.hpp>
@@ -27,6 +28,8 @@ namespace texture {
 	GLuint moon;
 	GLuint ship;
 	GLuint sun;
+    GLuint ground;
+	GLuint house;
 
 	GLuint grid;
 
@@ -44,6 +47,7 @@ Core::Shader_Loader shaderLoader;
 
 Core::RenderContext shipContext;
 Core::RenderContext sphereContext;
+Core::RenderContext groundContext;
 
 glm::vec3 cameraPos = glm::vec3(-8.f, 0, 0);
 glm::vec3 cameraDir = glm::vec3(1.f, 0.f, 0.f);
@@ -107,17 +111,19 @@ void drawObjectColor(Core::RenderContext& context, glm::mat4 modelMatrix, glm::v
 	Core::DrawContext(context);
 }
 
-void drawObjectTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint textureID) 
+void drawObjectTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint textureID)
 {
 	glUseProgram(programTex);
 	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
 	glm::mat4 transformation = viewProjectionMatrix * modelMatrix;
-	glUniformMatrix4fv(glGetUniformLocation(program, "transformation"), 1, GL_FALSE, (float*)&transformation);
-	glUniformMatrix4fv(glGetUniformLocation(program, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrix);
-	glUniform3f(glGetUniformLocation(program, "lightPos"), 0, 0, 0);
+	// Use programTex here instead of program!
+	glUniformMatrix4fv(glGetUniformLocation(programTex, "transformation"), 1, GL_FALSE, glm::value_ptr(transformation));
+	glUniformMatrix4fv(glGetUniformLocation(programTex, "modelMatrix"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
+	glUniform3f(glGetUniformLocation(programTex, "lightPos"), 0, 0, 0);
 	Core::SetActiveTexture(textureID, "colorTexture", programTex, 0);
 	Core::DrawContext(context);
 }
+
 
 void drawSunTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint textureID) {
 	GLuint prog = programSun;
@@ -208,6 +214,10 @@ void renderScene(GLFWwindow* window, float currentTime)
 	glClearColor(0.0f, 0.3f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
+	glm::mat4 grassModel = glm::translate(glm::vec3(0.f, -1.f, 0.f)) *
+		glm::scale(glm::vec3(50.f, 1.f, 50.f));
+	drawObjectTexture(groundContext, grassModel, texture::ground);
+
 	drawObjectTexture(sphereContext,
 		glm::eulerAngleY(currentTime / 3) *
 		glm::translate(glm::vec3(4.f, 0, 0)) *
@@ -260,7 +270,7 @@ void renderScene(GLFWwindow* window, float currentTime)
 	glDisable(GL_DEPTH_TEST);
 
 	// Update and draw boids
-	updateBoids();
+	updateBoids(currentTime);
 	for (const auto& b : boids) {
 		drawBoid(b);
 	}
@@ -309,6 +319,7 @@ void init(GLFWwindow* window)
 
 	loadModelToContext("./models/sphere.obj", sphereContext);
 	loadModelToContext("./models/spaceship.obj", shipContext);
+	loadModelToContext("./models/ground.obj", groundContext);
 
 	texture::earth = Core::LoadTexture("textures/earth.png");
 	texture::ship = Core::LoadTexture("textures/spaceship.jpg");
@@ -316,16 +327,22 @@ void init(GLFWwindow* window)
 	texture::moon = Core::LoadTexture("textures/moon.jpg");
 	texture::grid = Core::LoadTexture("textures/grid.png");
 	texture::sun = Core::LoadTexture("textures/sun.jpg");
+	texture::ground = Core::LoadTexture("textures/ground.jpg");
 
 	std::vector<std::string> skyboxFaces = {
-		"textures/skybox/space_lf.png", // left
-		"textures/skybox/space_rt.png", // right
-		"textures/skybox/space_dn.png", // bottom
-		"textures/skybox/space_up.png", // top
-		"textures/skybox/space_ft.png", // front
-		"textures/skybox/space_bk.png"  // back
+		"textures/skybox/DaylightBox_Right.bmp", // right
+		"textures/skybox/DaylightBox_Left.bmp", // left
+		"textures/skybox/DaylightBox_Top.bmp", // top
+		"textures/skybox/DaylightBox_Bottom.bmp", // bottom
+		"textures/skybox/DaylightBox_Front.bmp", // front
+		"textures/skybox/DaylightBox_Back.bmp"  // back
 	};
 	skybox = new Skybox(skyboxFaces);
+}
+
+void computeCollisionBoxes(GLFWwindow* window, float currentTime)
+{
+
 }
 
 //obsluga wejscia
@@ -400,30 +417,15 @@ void processInput(GLFWwindow* window, float currentTime)
 	glm::mat4 proposedShipModel = glm::translate(proposedPos) * shipRotationMatrix;
 	AABB shipAABB = computeTransformedAABB(sphereLocalBox, proposedShipModel);
 
-	glm::vec3 delta = proposedPos - spaceshipPos;
-
-	bool collision = checkAABBCollision(shipAABB, earthAABB) ||
-		checkAABBCollision(shipAABB, moonAABB) ||
-		checkAABBCollision(shipAABB, sunAABB);
-
-	if (collision) {
-		if (glm::dot(delta, spaceshipDir) < 0.0f) {
-			spaceshipPos = proposedPos;
-		}
-		else {
-			std::cout << "Kolizja - ruch zablokowany!" << std::endl;
-		}
-	}
-	else {
-		spaceshipPos = proposedPos;
-	}
-
 	glm::vec3 correction(0.f);
 	if (checkAABBCollision(shipAABB, earthAABB)) {
 		correction += computeMTV(shipAABB, earthAABB);
 	}
 	if (checkAABBCollision(shipAABB, moonAABB)) {
 		correction += computeMTV(shipAABB, moonAABB);
+	}
+	if (checkAABBCollision(shipAABB, sunAABB)) {
+		correction += computeMTV(shipAABB, sunAABB);
 	}
 
 	if (glm::length(correction) > 0.f) {

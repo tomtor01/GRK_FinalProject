@@ -26,6 +26,7 @@
   <ItemGroup>
     <ClInclude Include="src\Boids.hpp" />
     <ClInclude Include="src\Camera.h" />
+    <ClInclude Include="src\Model_Loader.hpp" />
     <ClInclude Include="src\Render_Scene.hpp" />
     <ClInclude Include="src\objload.h" />
     <ClInclude Include="src\Render_Utils.h" />
@@ -61,7 +62,14 @@
     <Image Include="textures\earth_normalmap.png" />
     <Image Include="textures\grid.png" />
     <Image Include="textures\grid_color.png" />
+    <Image Include="textures\ground.png" />
     <Image Include="textures\moon.jpg" />
+    <Image Include="textures\skybox\DaylightBox_Back.bmp" />
+    <Image Include="textures\skybox\DaylightBox_Bottom.bmp" />
+    <Image Include="textures\skybox\DaylightBox_Front.bmp" />
+    <Image Include="textures\skybox\DaylightBox_Left.bmp" />
+    <Image Include="textures\skybox\DaylightBox_Right.bmp" />
+    <Image Include="textures\skybox\DaylightBox_Top.bmp" />
     <Image Include="textures\skybox\space_bk.png" />
     <Image Include="textures\skybox\space_dn.png" />
     <Image Include="textures\skybox\space_ft.png" />
