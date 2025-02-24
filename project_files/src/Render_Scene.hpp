@@ -43,6 +43,9 @@ GLuint programSun;
 GLuint programTex;
 GLuint programEarth;
 GLuint programProcTex;
+GLuint programTest;
+GLuint programDepth;
+GLuint programPBR;
 Core::Shader_Loader shaderLoader;
 
 Core::RenderContext shipContext;
@@ -58,6 +61,41 @@ GLuint VAO,VBO;
 
 float aspectRatio = 1.f;
 Skybox* skybox = nullptr;
+
+//for shadow mapping and PBR
+
+namespace models {
+	Core::RenderContext testContext;
+	Core::RenderContext windowContext;
+	Core::RenderContext roomContext;
+	Core::RenderContext deskContext;
+}
+
+GLuint depthMapFBO;
+GLuint depthMap;
+
+glm::vec3 sunPos = glm::vec3(-4.740971f, 2.149999f, 0.369280f);
+glm::vec3 sunDir = glm::vec3(-0.93633f, 0.351106, 0.003226f);
+glm::vec3 sunColor = glm::vec3(0.9f, 0.9f, 0.7f) * 5;
+
+float exposition = 1.f;
+
+glm::vec3 pointlightPos = glm::vec3(0, 2, 0);
+glm::vec3 pointlightColor = glm::vec3(0.9, 0.6, 0.6);
+
+glm::vec3 spotlightPos = glm::vec3(0, 0, 0);
+glm::vec3 spotlightConeDir = glm::vec3(0, 0, 0);
+glm::vec3 spotlightColor = glm::vec3(0.4, 0.4, 0.9) * 3;
+float spotlightPhi = 3.14 / 4;
+
+int WIDTH = 1000, HEIGHT = 1000;
+const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
+
+
+
+float lastTime = -1.f;
+float deltaTime = 0.f;
+
 
 struct AABB {
 	glm::vec3 min;
@@ -144,6 +182,45 @@ void drawSunTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint 
 	glUseProgram(0);
 }
 
+void drawObjectPBR(Core::RenderContext& context, glm::mat4 modelMatrixPBR, glm::vec3 color, float roughness, float metallic) {
+
+
+	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
+	glm::mat4 transformationPBR = viewProjectionMatrix * modelMatrixPBR;
+	glUniformMatrix4fv(glGetUniformLocation(programPBR, "transformation"), 1, GL_FALSE, (float*)&transformationPBR);
+	glUniformMatrix4fv(glGetUniformLocation(programPBR, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrixPBR);
+
+	glUniform1f(glGetUniformLocation(programPBR, "exposition"), exposition);
+
+	glUniform1f(glGetUniformLocation(programPBR, "roughness"), roughness);
+	glUniform1f(glGetUniformLocation(programPBR, "metallic"), metallic);
+
+	glUniform3f(glGetUniformLocation(programPBR, "color"), color.x, color.y, color.z);
+
+	glUniform3f(glGetUniformLocation(programPBR, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
+
+	glUniform3f(glGetUniformLocation(programPBR, "sunDir"), sunDir.x, sunDir.y, sunDir.z);
+	glUniform3f(glGetUniformLocation(programPBR, "sunColor"), sunColor.x, sunColor.y, sunColor.z);
+
+	glUniform3f(glGetUniformLocation(programPBR, "lightPos"), pointlightPos.x, pointlightPos.y, pointlightPos.z);
+	glUniform3f(glGetUniformLocation(programPBR, "lightColor"), pointlightColor.x, pointlightColor.y, pointlightColor.z);
+
+	glUniform3f(glGetUniformLocation(programPBR, "spotlightConeDir"), spotlightConeDir.x, spotlightConeDir.y, spotlightConeDir.z);
+	glUniform3f(glGetUniformLocation(programPBR, "spotlightPos"), spotlightPos.x, spotlightPos.y, spotlightPos.z);
+	glUniform3f(glGetUniformLocation(programPBR, "spotlightColor"), spotlightColor.x, spotlightColor.y, spotlightColor.z);
+	glUniform1f(glGetUniformLocation(programPBR, "spotlightPhi"), spotlightPhi);
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, depthMap);
+
+	glm::mat4 lightVPPBR = glm::ortho(-1.f, 1.f, -1.f, 1.f, 1.0f, 30.f) * glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
+	glUniformMatrix4fv(glGetUniformLocation(programPBR, "lightVP"), 1, GL_FALSE, (float*)&lightVPPBR);
+
+	Core::DrawContext(context);
+
+}
+
+
 glm::mat4 computeShipRotationMatrix() {
 	// Oblicz wektory orientacji statku
 	glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
@@ -209,10 +286,69 @@ bool checkAABBCollision(const AABB& a, const AABB& b) {
 		(a.min.z <= b.max.z && a.max.z >= b.min.z);
 }
 
+//shadow mapping
+
+void initDepthMap() {
+	glGenFramebuffers(1, &depthMapFBO);
+
+	glGenTextures(1, &depthMap);
+	glBindTexture(GL_TEXTURE_2D, depthMap);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
+		SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+	glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
+	glDrawBuffer(GL_NONE);
+	glReadBuffer(GL_NONE);
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void drawObjectDepth(Core::RenderContext& renderContext, glm::mat4 viewProjection, glm::mat4 model) {
+	glUseProgram(programDepth);
+	glUniformMatrix4fv(glGetUniformLocation(programDepth, "modelMatrix"), 1, GL_FALSE, (float*)&model);
+	glUniformMatrix4fv(glGetUniformLocation(programDepth, "viewProjectionMatrix"), 1, GL_FALSE, (float*)&viewProjection);
+	Core::DrawContext(renderContext);
+}
+
+void renderShadowMapSun() {
+	float time = glfwGetTime();
+	//uzupelnij o renderowanie glebokosci do tekstury
+	// 
+	//ustawianie przestrzeni rysowania 
+	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+	//bindowanie FBO
+	glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
+	//czyszczenie mapy głębokości 
+	glClear(GL_DEPTH_BUFFER_BIT);
+	//ustawianie programu
+	glUseProgram(programDepth);
+
+	glm::mat4 lightProjection = glm::ortho(-10.f, 10.f, -10.f, 10.f, 1.0f, 30.0f);
+	glm::mat4 modelMatrix = glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
+	glm::mat4 lightVP = glm::ortho(-1.f, 1.f, -1.f, 1.f, 1.0f, 30.f) * glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
+
+	//drawObjectDepth(shipContext, lightVP, glm::mat4());
+	//drawObjectDepth(sphereContext, lightVP, glm::mat4());
+	drawObjectDepth(models::roomContext, lightVP, glm::mat4());
+	drawObjectDepth(models::windowContext, lightVP, glm::mat4());
+	drawObjectDepth(models::deskContext, lightVP, glm::mat4());
+
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	glViewport(0, 0, WIDTH, HEIGHT);
+}
+
 void renderScene(GLFWwindow* window, float currentTime)
 {
 	glClearColor(0.0f, 0.3f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	//zapisanie mapy głębokości, shadow mapping
+	renderShadowMapSun();
 
 	glm::mat4 grassModel = glm::translate(glm::vec3(0.f, -1.f, 0.f)) *
 		glm::scale(glm::vec3(50.f, 1.f, 50.f));
@@ -266,11 +402,20 @@ void renderScene(GLFWwindow* window, float currentTime)
 	glPushMatrix();
 	glLoadIdentity();
 
+	//drawing with shadow mapping
+
+	glUseProgram(programPBR);
+
+	//uncomment 3 lines below to see shadow mapping
+	//drawObjectPBR(models::roomContext, glm::mat4(), glm::vec3(0.9f, 0.9f, 0.9f), 0.8f, 0.0f);
+	//drawObjectPBR(models::windowContext, glm::mat4(), glm::vec3(0.402978f, 0.120509f, 0.057729f), 0.2f, 0.0f);
+	//drawObjectPBR(models::deskContext, glm::mat4(), glm::vec3(0.428691f, 0.08022f, 0.036889f), 0.2f, 0.0f);
+
 	// Disable depth testing if you want the boids to be drawn on top.
 	glDisable(GL_DEPTH_TEST);
 
 	// Update and draw boids
-	updateBoids(currentTime);
+	updateBoids(); //deleted currentTime from being function's variabl
 	for (const auto& b : boids) {
 		drawBoid(b);
 	}
@@ -283,8 +428,16 @@ void renderScene(GLFWwindow* window, float currentTime)
 	glPopMatrix();
 	glMatrixMode(GL_MODELVIEW);
 
+	//test depth buffer - for shadow mapping
+	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+	//glUseProgram(programTest);
+	//glActiveTexture(GL_TEXTURE0);
+	//glBindTexture(GL_TEXTURE_2D, depthMap);
+	//Core::DrawContext(models::testContext);
+
 	glUseProgram(0);
 	glfwSwapBuffers(window);
+
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
@@ -316,10 +469,17 @@ void init(GLFWwindow* window)
 	programEarth = shaderLoader.CreateProgram("shaders/shader_5_1_tex.vert", "shaders/shader_5_1_tex.frag");
 	programSun = shaderLoader.CreateProgram("shaders/shader_sun.vert", "shaders/shader_sun.frag");
 	programProcTex = shaderLoader.CreateProgram("shaders/shader_5_1_tex.vert", "shaders/shader_5_1_tex.frag");
+	programDepth = shaderLoader.CreateProgram("shaders/shader_depth.vert", "shaders/shader_depth.frag");
+	programTest = shaderLoader.CreateProgram("shaders/test.vert", "shaders/test.frag");
+	programPBR = shaderLoader.CreateProgram("shaders/shader_5_1_with_shadows.vert", "shaders/shader_5_1_with_shadows.frag");
 
 	loadModelToContext("./models/sphere.obj", sphereContext);
 	loadModelToContext("./models/spaceship.obj", shipContext);
 	loadModelToContext("./models/ground.obj", groundContext);
+	loadModelToContext("./models/test.obj", models::testContext);
+	loadModelToContext("./models/room.obj", models::roomContext);
+	loadModelToContext("./models/window.obj", models::windowContext);
+	loadModelToContext("./models/desk.obj", models::deskContext);
 
 	texture::earth = Core::LoadTexture("textures/earth.png");
 	texture::ship = Core::LoadTexture("textures/spaceship.jpg");
@@ -338,6 +498,9 @@ void init(GLFWwindow* window)
 		"textures/skybox/DaylightBox_Back.bmp"  // back
 	};
 	skybox = new Skybox(skyboxFaces);
+
+	//inicjowanie mapy głębokości, shadow mapping
+	initDepthMap();
 }
 
 void computeCollisionBoxes(GLFWwindow* window, float currentTime)
