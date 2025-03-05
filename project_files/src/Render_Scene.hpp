@@ -360,10 +360,23 @@ void renderShadowMapSun() {
 	glm::mat4 lightVP = glm::ortho(-10.f, 10.f, -10.f, 10.f, 1.0f, 30.f) * glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
 
 	//drawObjectDepth(shipContext, lightVP, glm::mat4());
-	//drawObjectDepth(sphereContext, lightVP, glm::mat4());
-	drawObjectDepth(models::roomContext, lightVP, glm::mat4());
-	//drawObjectDepth(models::windowContext, lightVP, glm::mat4());
-	drawObjectDepth(models::deskContext, lightVP, glm::mat4());
+	drawObjectDepth(sphereContext, lightVP, glm::mat4());
+	drawObjectDepth(sphereContext, lightVP, glm::eulerAngleY(time / 3) *
+		glm::translate(glm::vec3(4.f, 0, 0)) *
+		glm::scale(glm::vec3(0.3f)));
+	drawObjectDepth(sphereContext, lightVP, glm::eulerAngleY(time / 3) *
+		glm::translate(glm::vec3(4.f, 0, 0)) *
+		glm::eulerAngleY(time) *
+		glm::translate(glm::vec3(1.f, 0, 0)) *
+		glm::scale(glm::vec3(0.1f)));
+	drawObjectDepth(models::roomContext, lightVP, glm::translate(glm::vec3(2.f, -3.f, 5.0f)));
+	drawObjectDepth(models::windowContext, lightVP, glm::translate(glm::vec3(2.f, -3.f, 5.0f)));
+	drawObjectDepth(models::deskContext, lightVP, glm::translate(glm::vec3(2.f, -3.f, 5.0f)));
+
+	glm::mat4 grassModel = glm::translate(glm::vec3(0.f, -3.f, 0.f)) *
+		glm::scale(glm::vec3(50.f, 1.f, 50.f));
+
+	//drawObjectDepth(groundContext, lightVP, grassModel);
 
 	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
 	glm::mat4 shipModelPos = glm::translate(spaceshipPos) * shipRotationMatrix;
@@ -383,9 +396,10 @@ void renderScene(GLFWwindow* window, float currentTime)
 	//zapisanie mapy głębokości, shadow mapping
 	renderShadowMapSun();
 
-	glm::mat4 grassModel = glm::translate(glm::vec3(0.f, -1.f, 0.f)) *
+	glm::mat4 grassModel = glm::translate(glm::vec3(0.f, -3.f, 0.f)) *
 		glm::scale(glm::vec3(50.f, 1.f, 50.f));
 	drawObjectTexture(groundContext, grassModel, texture::ground);
+	
 
 	drawObjectTexture(sphereContext,
 		glm::eulerAngleY(currentTime / 3) *
@@ -438,11 +452,12 @@ void renderScene(GLFWwindow* window, float currentTime)
 	//drawing with shadow mapping
 
 	glUseProgram(programPBR);
+	//drawObjectPBR(groundContext, grassModel, glm::vec3(0.9f, 0.0f, 0.9f), 0.8f, 0.0f);
 
 	//uncomment 3 lines below to see shadow mapping
-	//drawObjectPBR(models::roomContext, glm::mat4(), glm::vec3(0.9f, 0.9f, 0.9f), 0.8f, 0.0f);
-	//drawObjectPBR(models::windowContext, glm::mat4(), glm::vec3(0.402978f, 0.120509f, 0.057729f), 0.2f, 0.0f);
-	//drawObjectPBR(models::deskContext, glm::mat4(), glm::vec3(0.428691f, 0.08022f, 0.036889f), 0.2f, 0.0f);
+	drawObjectPBR(models::roomContext, glm::translate(glm::vec3(2.f, -3.f, 5.0f)), glm::vec3(0.9f, 0.9f, 0.9f), 0.8f, 0.0f);
+	drawObjectPBR(models::windowContext, glm::translate(glm::vec3(2.f, -3.f, 5.0f)), glm::vec3(0.402978f, 0.120509f, 0.057729f), 0.2f, 0.0f);
+	drawObjectPBR(models::deskContext, glm::translate(glm::vec3(2.f, -3.f, 5.0f)), glm::vec3(0.428691f, 0.08022f, 0.036889f), 0.2f, 0.0f);
 	//drawObjectPBR(models::roomContext, glm::translate(glm::vec3(4.f, 0, 8.0f)), glm::vec3(0.9f, 0.9f, 0.9f), 0.8f, 0.0f);
 
 	// Disable depth testing if you want the boids to be drawn on top.
@@ -525,7 +540,7 @@ void init(GLFWwindow* window)
 	texture::moon = Core::LoadTexture("textures/moon.jpg");
 	texture::grid = Core::LoadTexture("textures/grid.png");
 	texture::sun = Core::LoadTexture("textures/sun.jpg");
-	texture::ground = Core::LoadTexture("textures/ground.jpg");
+	texture::ground = Core::LoadTexture("textures/ground.png");
 
 	std::vector<std::string> skyboxFaces = {
 		"textures/skybox/DaylightBox_Right.bmp", // right
@@ -551,7 +566,7 @@ void processInput(GLFWwindow* window, float currentTime)
 {
 	glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
 	glm::vec3 spaceshipUp = glm::vec3(0.f, 1.f, 0.f);
-	float angleSpeed = 0.005f;
+	float angleSpeed = 0.05f;
 	float moveSpeed = 0.010f;
 
 	// Używamy zmiennej pomocniczej proposedPos, zaczynając od aktualnej pozycji
@@ -641,7 +656,7 @@ void processInput(GLFWwindow* window, float currentTime)
 	cameraPos = spaceshipPos - 1.5f * spaceshipDir + glm::vec3(0.f, 1.f, 0.f) * 0.5f;
 	cameraDir = glm::normalize(spaceshipPos - cameraPos);
 
-	initBoids(50, 1000, 1000);
+	//initBoids(50, 1000, 1000);
 }
 
 void shutdown(GLFWwindow* window)
