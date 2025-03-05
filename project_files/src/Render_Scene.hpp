@@ -46,6 +46,7 @@ GLuint programProcTex;
 GLuint programTest;
 GLuint programDepth;
 GLuint programPBR;
+GLuint programNormal;
 Core::Shader_Loader shaderLoader;
 
 Core::RenderContext shipContext;
@@ -286,6 +287,20 @@ bool checkAABBCollision(const AABB& a, const AABB& b) {
 		(a.min.z <= b.max.z && a.max.z >= b.min.z);
 }
 
+//normal mapping
+void drawObjectNormal(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint textureID, GLuint normalID) {
+	glUseProgram(programNormal);
+	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
+	glm::mat4 transformation = viewProjectionMatrix * modelMatrix;
+	glUniformMatrix4fv(glGetUniformLocation(programNormal, "transformation"), 1, GL_FALSE, (float*)&transformation);
+	glUniformMatrix4fv(glGetUniformLocation(programNormal, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrix);
+	glUniform3f(glGetUniformLocation(programNormal, "lightPos"), 0, 0, 0);
+	Core::SetActiveTexture(textureID, "colorTexture", programNormal, 0);
+	Core::SetActiveTexture(normalID, "normalSampler", programNormal, 1);
+	Core::DrawContext(context);
+
+}
+
 //shadow mapping
 
 void initDepthMap() {
@@ -370,7 +385,7 @@ void renderScene(GLFWwindow* window, float currentTime)
 
 	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
 	glm::mat4 shipModel = glm::translate(spaceshipPos) * shipRotationMatrix;
-	drawObjectTexture(shipContext, shipModel, texture::ship);
+	drawObjectNormal(shipContext, shipModel, texture::ship, texture::shipNormal);
 
 	glm::mat4 sunModelMatrix = glm::translate(glm::vec3(0.f, 0.f, 0.f)) * glm::scale(glm::vec3(1.5f));
 	drawSunTexture(sphereContext, sunModelMatrix, texture::sun);
@@ -472,6 +487,7 @@ void init(GLFWwindow* window)
 	programDepth = shaderLoader.CreateProgram("shaders/shader_depth.vert", "shaders/shader_depth.frag");
 	programTest = shaderLoader.CreateProgram("shaders/test.vert", "shaders/test.frag");
 	programPBR = shaderLoader.CreateProgram("shaders/shader_5_1_with_shadows.vert", "shaders/shader_5_1_with_shadows.frag");
+	programNormal = shaderLoader.CreateProgram("shaders/shader_normal.vert", "shaders/shader_normal.frag");
 
 	loadModelToContext("./models/sphere.obj", sphereContext);
 	loadModelToContext("./models/spaceship.obj", shipContext);
@@ -483,6 +499,7 @@ void init(GLFWwindow* window)
 
 	texture::earth = Core::LoadTexture("textures/earth.png");
 	texture::ship = Core::LoadTexture("textures/spaceship.jpg");
+	texture::shipNormal = Core::LoadTexture("textures/spaceship_normal.jpg");
 	texture::clouds = Core::LoadTexture("textures/clouds.jpg");
 	texture::moon = Core::LoadTexture("textures/moon.jpg");
 	texture::grid = Core::LoadTexture("textures/grid.png");
@@ -513,8 +530,8 @@ void processInput(GLFWwindow* window, float currentTime)
 {
 	glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
 	glm::vec3 spaceshipUp = glm::vec3(0.f, 1.f, 0.f);
-	float angleSpeed = 0.0025f;
-	float moveSpeed = 0.005f;
+	float angleSpeed = 0.025f;
+	float moveSpeed = 0.05f;
 
 	// Używamy zmiennej pomocniczej proposedPos, zaczynając od aktualnej pozycji
 	glm::vec3 proposedPos = spaceshipPos;

@@ -49,6 +49,8 @@
     <None Include="shaders\shader_5_1.vert" />
     <None Include="shaders\shader_5_1_tex.frag" />
     <None Include="shaders\shader_5_1_tex.vert" />
+    <None Include="shaders\shader_normal.frag" />
+    <None Include="shaders\shader_normal.vert" />
     <None Include="shaders\shader_sun.frag" />
     <None Include="shaders\shader_sun.vert" />
     <None Include="shaders\shader_skybox.frag" />

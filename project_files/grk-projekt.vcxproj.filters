@@ -133,6 +133,12 @@
     <None Include="shaders\shader_skybox.vert">
       <Filter>Shader Files</Filter>
     </None>
+    <None Include="shaders\shader_normal.frag">
+      <Filter>Shader Files</Filter>
+    </None>
+    <None Include="shaders\shader_normal.vert">
+      <Filter>Shader Files</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Image Include="textures\earth.png">
