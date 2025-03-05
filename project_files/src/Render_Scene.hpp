@@ -214,7 +214,7 @@ void drawObjectPBR(Core::RenderContext& context, glm::mat4 modelMatrixPBR, glm::
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, depthMap);
 
-	glm::mat4 lightVPPBR = glm::ortho(-1.f, 1.f, -1.f, 1.f, 1.0f, 30.f) * glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
+	glm::mat4 lightVPPBR = glm::ortho(-10.f, 10.f, -10.f, 10.f, 1.0f, 30.f) * glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
 	glUniformMatrix4fv(glGetUniformLocation(programPBR, "lightVP"), 1, GL_FALSE, (float*)&lightVPPBR);
 
 	Core::DrawContext(context);
@@ -344,13 +344,18 @@ void renderShadowMapSun() {
 
 	glm::mat4 lightProjection = glm::ortho(-10.f, 10.f, -10.f, 10.f, 1.0f, 30.0f);
 	glm::mat4 modelMatrix = glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
-	glm::mat4 lightVP = glm::ortho(-1.f, 1.f, -1.f, 1.f, 1.0f, 30.f) * glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
+	glm::mat4 lightVP = glm::ortho(-10.f, 10.f, -10.f, 10.f, 1.0f, 30.f) * glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
 
 	//drawObjectDepth(shipContext, lightVP, glm::mat4());
 	//drawObjectDepth(sphereContext, lightVP, glm::mat4());
 	drawObjectDepth(models::roomContext, lightVP, glm::mat4());
-	drawObjectDepth(models::windowContext, lightVP, glm::mat4());
+	//drawObjectDepth(models::windowContext, lightVP, glm::mat4());
 	drawObjectDepth(models::deskContext, lightVP, glm::mat4());
+
+	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
+	glm::mat4 shipModelPos = glm::translate(spaceshipPos) * shipRotationMatrix;
+	drawObjectDepth(shipContext, lightVP, shipModelPos);
+	//drawObjectNormal(shipContext, shipModel, texture::ship, texture::shipNormal);
 
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -425,6 +430,7 @@ void renderScene(GLFWwindow* window, float currentTime)
 	//drawObjectPBR(models::roomContext, glm::mat4(), glm::vec3(0.9f, 0.9f, 0.9f), 0.8f, 0.0f);
 	//drawObjectPBR(models::windowContext, glm::mat4(), glm::vec3(0.402978f, 0.120509f, 0.057729f), 0.2f, 0.0f);
 	//drawObjectPBR(models::deskContext, glm::mat4(), glm::vec3(0.428691f, 0.08022f, 0.036889f), 0.2f, 0.0f);
+	//drawObjectPBR(models::roomContext, glm::translate(glm::vec3(4.f, 0, 8.0f)), glm::vec3(0.9f, 0.9f, 0.9f), 0.8f, 0.0f);
 
 	// Disable depth testing if you want the boids to be drawn on top.
 	glDisable(GL_DEPTH_TEST);
@@ -530,8 +536,8 @@ void processInput(GLFWwindow* window, float currentTime)
 {
 	glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
 	glm::vec3 spaceshipUp = glm::vec3(0.f, 1.f, 0.f);
-	float angleSpeed = 0.025f;
-	float moveSpeed = 0.05f;
+	float angleSpeed = 0.005f;
+	float moveSpeed = 0.010f;
 
 	// Używamy zmiennej pomocniczej proposedPos, zaczynając od aktualnej pozycji
 	glm::vec3 proposedPos = spaceshipPos;
