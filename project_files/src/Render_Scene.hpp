@@ -12,7 +12,6 @@
 
 #include "Camera.h"
 #include "Boids.hpp"
-#include "Model_Loader.hpp"
 #include "Box.cpp"
 #include "Skybox.hpp"
 #include <assimp/Importer.hpp>
@@ -28,8 +27,6 @@ namespace texture {
 	GLuint moon;
 	GLuint ship;
 	GLuint sun;
-    GLuint ground;
-	GLuint house;
 
 	GLuint grid;
 
@@ -43,15 +40,10 @@ GLuint programSun;
 GLuint programTex;
 GLuint programEarth;
 GLuint programProcTex;
-GLuint programTest;
-GLuint programDepth;
-GLuint programPBR;
-GLuint programNormal;
 Core::Shader_Loader shaderLoader;
 
 Core::RenderContext shipContext;
 Core::RenderContext sphereContext;
-Core::RenderContext groundContext;
 
 glm::vec3 cameraPos = glm::vec3(-8.f, 0, 0);
 glm::vec3 cameraDir = glm::vec3(1.f, 0.f, 0.f);
@@ -63,40 +55,8 @@ GLuint VAO,VBO;
 float aspectRatio = 1.f;
 Skybox* skybox = nullptr;
 
-//for shadow mapping and PBR
-
-namespace models {
-	Core::RenderContext testContext;
-	Core::RenderContext windowContext;
-	Core::RenderContext roomContext;
-	Core::RenderContext deskContext;
-}
-
-GLuint depthMapFBO;
-GLuint depthMap;
-
-glm::vec3 sunPos = glm::vec3(-4.740971f, 2.149999f, 0.369280f);
-glm::vec3 sunDir = glm::vec3(-0.93633f, 0.351106, 0.003226f);
-glm::vec3 sunColor = glm::vec3(0.9f, 0.9f, 0.7f) * 5;
-
-float exposition = 1.f;
-
-glm::vec3 pointlightPos = glm::vec3(0, 2, 0);
-glm::vec3 pointlightColor = glm::vec3(0.9, 0.6, 0.6);
-
-glm::vec3 spotlightPos = glm::vec3(0, 0, 0);
-glm::vec3 spotlightConeDir = glm::vec3(0, 0, 0);
-glm::vec3 spotlightColor = glm::vec3(0.4, 0.4, 0.9) * 3;
-float spotlightPhi = 3.14 / 4;
-
-int WIDTH = 1000, HEIGHT = 1000;
-const unsigned int SHADOW_WIDTH = 1024, SHADOW_HEIGHT = 1024;
-
-
-
-float lastTime = -1.f;
-float deltaTime = 0.f;
-
+int Boids_count = 20;
+float width = 10.0, heigth = 10.0, depth = 10.0;
 
 struct AABB {
 	glm::vec3 min;
@@ -150,19 +110,17 @@ void drawObjectColor(Core::RenderContext& context, glm::mat4 modelMatrix, glm::v
 	Core::DrawContext(context);
 }
 
-void drawObjectTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint textureID)
+void drawObjectTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint textureID) 
 {
 	glUseProgram(programTex);
 	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
 	glm::mat4 transformation = viewProjectionMatrix * modelMatrix;
-	// Use programTex here instead of program!
-	glUniformMatrix4fv(glGetUniformLocation(programTex, "transformation"), 1, GL_FALSE, glm::value_ptr(transformation));
-	glUniformMatrix4fv(glGetUniformLocation(programTex, "modelMatrix"), 1, GL_FALSE, glm::value_ptr(modelMatrix));
-	glUniform3f(glGetUniformLocation(programTex, "lightPos"), 0, 0, 0);
+	glUniformMatrix4fv(glGetUniformLocation(program, "transformation"), 1, GL_FALSE, (float*)&transformation);
+	glUniformMatrix4fv(glGetUniformLocation(program, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrix);
+	glUniform3f(glGetUniformLocation(program, "lightPos"), 0, 0, 0);
 	Core::SetActiveTexture(textureID, "colorTexture", programTex, 0);
 	Core::DrawContext(context);
 }
-
 
 void drawSunTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint textureID) {
 	GLuint prog = programSun;
@@ -182,45 +140,6 @@ void drawSunTexture(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint 
 
 	glUseProgram(0);
 }
-
-void drawObjectPBR(Core::RenderContext& context, glm::mat4 modelMatrixPBR, glm::vec3 color, float roughness, float metallic) {
-
-
-	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
-	glm::mat4 transformationPBR = viewProjectionMatrix * modelMatrixPBR;
-	glUniformMatrix4fv(glGetUniformLocation(programPBR, "transformation"), 1, GL_FALSE, (float*)&transformationPBR);
-	glUniformMatrix4fv(glGetUniformLocation(programPBR, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrixPBR);
-
-	glUniform1f(glGetUniformLocation(programPBR, "exposition"), exposition);
-
-	glUniform1f(glGetUniformLocation(programPBR, "roughness"), roughness);
-	glUniform1f(glGetUniformLocation(programPBR, "metallic"), metallic);
-
-	glUniform3f(glGetUniformLocation(programPBR, "color"), color.x, color.y, color.z);
-
-	glUniform3f(glGetUniformLocation(programPBR, "cameraPos"), cameraPos.x, cameraPos.y, cameraPos.z);
-
-	glUniform3f(glGetUniformLocation(programPBR, "sunDir"), sunDir.x, sunDir.y, sunDir.z);
-	glUniform3f(glGetUniformLocation(programPBR, "sunColor"), sunColor.x, sunColor.y, sunColor.z);
-
-	glUniform3f(glGetUniformLocation(programPBR, "lightPos"), pointlightPos.x, pointlightPos.y, pointlightPos.z);
-	glUniform3f(glGetUniformLocation(programPBR, "lightColor"), pointlightColor.x, pointlightColor.y, pointlightColor.z);
-
-	glUniform3f(glGetUniformLocation(programPBR, "spotlightConeDir"), spotlightConeDir.x, spotlightConeDir.y, spotlightConeDir.z);
-	glUniform3f(glGetUniformLocation(programPBR, "spotlightPos"), spotlightPos.x, spotlightPos.y, spotlightPos.z);
-	glUniform3f(glGetUniformLocation(programPBR, "spotlightColor"), spotlightColor.x, spotlightColor.y, spotlightColor.z);
-	glUniform1f(glGetUniformLocation(programPBR, "spotlightPhi"), spotlightPhi);
-
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, depthMap);
-
-	glm::mat4 lightVPPBR = glm::ortho(-10.f, 10.f, -10.f, 10.f, 1.0f, 30.f) * glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
-	glUniformMatrix4fv(glGetUniformLocation(programPBR, "lightVP"), 1, GL_FALSE, (float*)&lightVPPBR);
-
-	Core::DrawContext(context);
-
-}
-
 
 glm::mat4 computeShipRotationMatrix() {
 	// Oblicz wektory orientacji statku
@@ -287,92 +206,21 @@ bool checkAABBCollision(const AABB& a, const AABB& b) {
 		(a.min.z <= b.max.z && a.max.z >= b.min.z);
 }
 
-//normal mapping
-void drawObjectNormal(Core::RenderContext& context, glm::mat4 modelMatrix, GLuint textureID, GLuint normalID) {
-	glUseProgram(programNormal);
-	glm::mat4 viewProjectionMatrix = createPerspectiveMatrix() * createCameraMatrix();
-	glm::mat4 transformation = viewProjectionMatrix * modelMatrix;
-	glUniformMatrix4fv(glGetUniformLocation(programNormal, "transformation"), 1, GL_FALSE, (float*)&transformation);
-	glUniformMatrix4fv(glGetUniformLocation(programNormal, "modelMatrix"), 1, GL_FALSE, (float*)&modelMatrix);
-	glUniform3f(glGetUniformLocation(programNormal, "lightPos"), 0, 0, 0);
-	Core::SetActiveTexture(textureID, "colorTexture", programNormal, 0);
-	Core::SetActiveTexture(normalID, "normalSampler", programNormal, 1);
-	Core::DrawContext(context);
-
+void drawBoid(const Boid& b) {
+	float yaw = atan2(b.vx, b.vz);
+	float pitch = atan2(b.vy, glm::length(glm::vec2(b.vx, b.vz)));
+	drawObjectTexture(shipContext,
+		glm::translate(glm::vec3(b.x, b.y, b.z)) *
+		glm::scale(glm::vec3(1.0f)) * 
+		glm::rotate(glm::mat4(1.0f), yaw, glm::vec3(0, 1, 0)) * 
+		glm::rotate(glm::mat4(1.0f), -pitch, glm::vec3(1.0f, 0.0f, 0.0f)),
+		texture::moon);
 }
 
-//shadow mapping
-
-void initDepthMap() {
-	glGenFramebuffers(1, &depthMapFBO);
-
-	glGenTextures(1, &depthMap);
-	glBindTexture(GL_TEXTURE_2D, depthMap);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_DEPTH_COMPONENT,
-		SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-	glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthMap, 0);
-	glDrawBuffer(GL_NONE);
-	glReadBuffer(GL_NONE);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-}
-
-void drawObjectDepth(Core::RenderContext& renderContext, glm::mat4 viewProjection, glm::mat4 model) {
-	glUseProgram(programDepth);
-	glUniformMatrix4fv(glGetUniformLocation(programDepth, "modelMatrix"), 1, GL_FALSE, (float*)&model);
-	glUniformMatrix4fv(glGetUniformLocation(programDepth, "viewProjectionMatrix"), 1, GL_FALSE, (float*)&viewProjection);
-	Core::DrawContext(renderContext);
-}
-
-void renderShadowMapSun() {
-	float time = glfwGetTime();
-	//uzupelnij o renderowanie glebokosci do tekstury
-	// 
-	//ustawianie przestrzeni rysowania 
-	glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
-	//bindowanie FBO
-	glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO);
-	//czyszczenie mapy głębokości 
-	glClear(GL_DEPTH_BUFFER_BIT);
-	//ustawianie programu
-	glUseProgram(programDepth);
-
-	glm::mat4 lightProjection = glm::ortho(-10.f, 10.f, -10.f, 10.f, 1.0f, 30.0f);
-	glm::mat4 modelMatrix = glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
-	glm::mat4 lightVP = glm::ortho(-10.f, 10.f, -10.f, 10.f, 1.0f, 30.f) * glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
-
-	//drawObjectDepth(shipContext, lightVP, glm::mat4());
-	//drawObjectDepth(sphereContext, lightVP, glm::mat4());
-	drawObjectDepth(models::roomContext, lightVP, glm::mat4());
-	//drawObjectDepth(models::windowContext, lightVP, glm::mat4());
-	drawObjectDepth(models::deskContext, lightVP, glm::mat4());
-
-	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
-	glm::mat4 shipModelPos = glm::translate(spaceshipPos) * shipRotationMatrix;
-	drawObjectDepth(shipContext, lightVP, shipModelPos);
-	//drawObjectNormal(shipContext, shipModel, texture::ship, texture::shipNormal);
-
-
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-	glViewport(0, 0, WIDTH, HEIGHT);
-}
-
-void renderScene(GLFWwindow* window, float currentTime)
+void renderScene(GLFWwindow* window, float currentTime) //-----------------------------------------------------------------
 {
 	glClearColor(0.0f, 0.3f, 0.3f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	//zapisanie mapy głębokości, shadow mapping
-	renderShadowMapSun();
-
-	glm::mat4 grassModel = glm::translate(glm::vec3(0.f, -1.f, 0.f)) *
-		glm::scale(glm::vec3(50.f, 1.f, 50.f));
-	drawObjectTexture(groundContext, grassModel, texture::ground);
 
 	drawObjectTexture(sphereContext,
 		glm::eulerAngleY(currentTime / 3) *
@@ -390,7 +238,7 @@ void renderScene(GLFWwindow* window, float currentTime)
 
 	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
 	glm::mat4 shipModel = glm::translate(spaceshipPos) * shipRotationMatrix;
-	drawObjectNormal(shipContext, shipModel, texture::ship, texture::shipNormal);
+	drawObjectTexture(shipContext, shipModel, texture::ship);
 
 	glm::mat4 sunModelMatrix = glm::translate(glm::vec3(0.f, 0.f, 0.f)) * glm::scale(glm::vec3(1.5f));
 	drawSunTexture(sphereContext, sunModelMatrix, texture::sun);
@@ -422,24 +270,14 @@ void renderScene(GLFWwindow* window, float currentTime)
 	glPushMatrix();
 	glLoadIdentity();
 
-	//drawing with shadow mapping
-
-	glUseProgram(programPBR);
-
-	//uncomment 3 lines below to see shadow mapping
-	//drawObjectPBR(models::roomContext, glm::mat4(), glm::vec3(0.9f, 0.9f, 0.9f), 0.8f, 0.0f);
-	//drawObjectPBR(models::windowContext, glm::mat4(), glm::vec3(0.402978f, 0.120509f, 0.057729f), 0.2f, 0.0f);
-	//drawObjectPBR(models::deskContext, glm::mat4(), glm::vec3(0.428691f, 0.08022f, 0.036889f), 0.2f, 0.0f);
-	//drawObjectPBR(models::roomContext, glm::translate(glm::vec3(4.f, 0, 8.0f)), glm::vec3(0.9f, 0.9f, 0.9f), 0.8f, 0.0f);
-
 	// Disable depth testing if you want the boids to be drawn on top.
 	glDisable(GL_DEPTH_TEST);
 
 	// Update and draw boids
-	updateBoids(); //deleted currentTime from being function's variabl
 	for (const auto& b : boids) {
 		drawBoid(b);
 	}
+	update_boids();
 
 	// Restore previous projection and modelview matrices
 	glEnable(GL_DEPTH_TEST);
@@ -449,16 +287,8 @@ void renderScene(GLFWwindow* window, float currentTime)
 	glPopMatrix();
 	glMatrixMode(GL_MODELVIEW);
 
-	//test depth buffer - for shadow mapping
-	//glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//glUseProgram(programTest);
-	//glActiveTexture(GL_TEXTURE0);
-	//glBindTexture(GL_TEXTURE_2D, depthMap);
-	//Core::DrawContext(models::testContext);
-
 	glUseProgram(0);
 	glfwSwapBuffers(window);
-
 }
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
@@ -482,6 +312,8 @@ void loadModelToContext(std::string path, Core::RenderContext& context)
 
 void init(GLFWwindow* window)
 {
+	//create boids
+	initBoids(Boids_count, heigth, width, depth);
 	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
 	glEnable(GL_DEPTH_TEST);
@@ -490,45 +322,26 @@ void init(GLFWwindow* window)
 	programEarth = shaderLoader.CreateProgram("shaders/shader_5_1_tex.vert", "shaders/shader_5_1_tex.frag");
 	programSun = shaderLoader.CreateProgram("shaders/shader_sun.vert", "shaders/shader_sun.frag");
 	programProcTex = shaderLoader.CreateProgram("shaders/shader_5_1_tex.vert", "shaders/shader_5_1_tex.frag");
-	programDepth = shaderLoader.CreateProgram("shaders/shader_depth.vert", "shaders/shader_depth.frag");
-	programTest = shaderLoader.CreateProgram("shaders/test.vert", "shaders/test.frag");
-	programPBR = shaderLoader.CreateProgram("shaders/shader_5_1_with_shadows.vert", "shaders/shader_5_1_with_shadows.frag");
-	programNormal = shaderLoader.CreateProgram("shaders/shader_normal.vert", "shaders/shader_normal.frag");
 
 	loadModelToContext("./models/sphere.obj", sphereContext);
 	loadModelToContext("./models/spaceship.obj", shipContext);
-	loadModelToContext("./models/ground.obj", groundContext);
-	loadModelToContext("./models/test.obj", models::testContext);
-	loadModelToContext("./models/room.obj", models::roomContext);
-	loadModelToContext("./models/window.obj", models::windowContext);
-	loadModelToContext("./models/desk.obj", models::deskContext);
 
 	texture::earth = Core::LoadTexture("textures/earth.png");
 	texture::ship = Core::LoadTexture("textures/spaceship.jpg");
-	texture::shipNormal = Core::LoadTexture("textures/spaceship_normal.jpg");
 	texture::clouds = Core::LoadTexture("textures/clouds.jpg");
 	texture::moon = Core::LoadTexture("textures/moon.jpg");
 	texture::grid = Core::LoadTexture("textures/grid.png");
 	texture::sun = Core::LoadTexture("textures/sun.jpg");
-	texture::ground = Core::LoadTexture("textures/ground.jpg");
 
 	std::vector<std::string> skyboxFaces = {
-		"textures/skybox/DaylightBox_Right.bmp", // right
-		"textures/skybox/DaylightBox_Left.bmp", // left
-		"textures/skybox/DaylightBox_Top.bmp", // top
-		"textures/skybox/DaylightBox_Bottom.bmp", // bottom
-		"textures/skybox/DaylightBox_Front.bmp", // front
-		"textures/skybox/DaylightBox_Back.bmp"  // back
+		"textures/skybox/space_lf.png", // left
+		"textures/skybox/space_rt.png", // right
+		"textures/skybox/space_dn.png", // bottom
+		"textures/skybox/space_up.png", // top
+		"textures/skybox/space_ft.png", // front
+		"textures/skybox/space_bk.png"  // back
 	};
 	skybox = new Skybox(skyboxFaces);
-
-	//inicjowanie mapy głębokości, shadow mapping
-	initDepthMap();
-}
-
-void computeCollisionBoxes(GLFWwindow* window, float currentTime)
-{
-
 }
 
 //obsluga wejscia
@@ -536,8 +349,8 @@ void processInput(GLFWwindow* window, float currentTime)
 {
 	glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
 	glm::vec3 spaceshipUp = glm::vec3(0.f, 1.f, 0.f);
-	float angleSpeed = 0.005f;
-	float moveSpeed = 0.010f;
+	float angleSpeed = 0.0025f;
+	float moveSpeed = 0.005f;
 
 	// Używamy zmiennej pomocniczej proposedPos, zaczynając od aktualnej pozycji
 	glm::vec3 proposedPos = spaceshipPos;
@@ -603,15 +416,30 @@ void processInput(GLFWwindow* window, float currentTime)
 	glm::mat4 proposedShipModel = glm::translate(proposedPos) * shipRotationMatrix;
 	AABB shipAABB = computeTransformedAABB(sphereLocalBox, proposedShipModel);
 
+	glm::vec3 delta = proposedPos - spaceshipPos;
+
+	bool collision = checkAABBCollision(shipAABB, earthAABB) ||
+		checkAABBCollision(shipAABB, moonAABB) ||
+		checkAABBCollision(shipAABB, sunAABB);
+
+	if (collision) {
+		if (glm::dot(delta, spaceshipDir) < 0.0f) {
+			spaceshipPos = proposedPos;
+		}
+		else {
+			std::cout << "Kolizja - ruch zablokowany!" << std::endl;
+		}
+	}
+	else {
+		spaceshipPos = proposedPos;
+	}
+
 	glm::vec3 correction(0.f);
 	if (checkAABBCollision(shipAABB, earthAABB)) {
 		correction += computeMTV(shipAABB, earthAABB);
 	}
 	if (checkAABBCollision(shipAABB, moonAABB)) {
 		correction += computeMTV(shipAABB, moonAABB);
-	}
-	if (checkAABBCollision(shipAABB, sunAABB)) {
-		correction += computeMTV(shipAABB, sunAABB);
 	}
 
 	if (glm::length(correction) > 0.f) {
@@ -625,8 +453,6 @@ void processInput(GLFWwindow* window, float currentTime)
 
 	cameraPos = spaceshipPos - 1.5f * spaceshipDir + glm::vec3(0.f, 1.f, 0.f) * 0.5f;
 	cameraDir = glm::normalize(spaceshipPos - cameraPos);
-
-	initBoids(50, 1000, 1000);
 }
 
 void shutdown(GLFWwindow* window)
