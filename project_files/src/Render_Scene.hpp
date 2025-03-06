@@ -403,13 +403,13 @@ void renderScene(GLFWwindow* window, float currentTime)
 
 	drawObjectTexture(sphereContext,
 		glm::eulerAngleY(currentTime / 3) *
-		glm::translate(glm::vec3(4.f, 0, 0)) *
+		glm::translate(glm::vec3(6.f, 10.f, 0)) *
 		glm::scale(glm::vec3(0.3f)),
 		texture::earth);
 
 	drawObjectTexture(sphereContext,
 		glm::eulerAngleY(currentTime / 3) *
-		glm::translate(glm::vec3(4.f, 0, 0)) *
+		glm::translate(glm::vec3(6.f, 10.f, 0)) *
 		glm::eulerAngleY(currentTime) *
 		glm::translate(glm::vec3(1.f, 0, 0)) *
 		glm::scale(glm::vec3(0.1f)),
@@ -426,7 +426,7 @@ void renderScene(GLFWwindow* window, float currentTime)
 		drawObjectTexture(shipContext, shipModel, texture::ship);
 	}
 
-	glm::mat4 sunModelMatrix = glm::translate(glm::vec3(0.f, 0.f, 0.f)) * glm::scale(glm::vec3(1.5f));
+	glm::mat4 sunModelMatrix = glm::translate(glm::vec3(-3.f, 10.f, 0.f)) * glm::scale(glm::vec3(1.5f));
 	drawSunTexture(sphereContext, sunModelMatrix, texture::sun);
 
 	// Disable writing to the depth buffer so the skybox doesn't overwrite depth values
@@ -462,9 +462,9 @@ void renderScene(GLFWwindow* window, float currentTime)
 	//drawObjectPBR(groundContext, grassModel, glm::vec3(0.9f, 0.0f, 0.9f), 0.8f, 0.0f);
 
 	//uncomment 3 lines below to see shadow mapping
-	drawObjectPBR(models::roomContext, glm::translate(glm::vec3(2.f, -3.f, 5.0f)), glm::vec3(0.9f, 0.9f, 0.9f), 0.8f, 0.0f);
-	drawObjectPBR(models::windowContext, glm::translate(glm::vec3(2.f, -3.f, 5.0f)), glm::vec3(0.402978f, 0.120509f, 0.057729f), 0.2f, 0.0f);
-	drawObjectPBR(models::deskContext, glm::translate(glm::vec3(2.f, -3.f, 5.0f)), glm::vec3(0.428691f, 0.08022f, 0.036889f), 0.2f, 0.0f);
+	drawObjectPBR(models::roomContext, glm::translate(glm::vec3(2.f, -3.f, 5.0f)) * glm::scale(glm::vec3(2.f)), glm::vec3(0.9f, 0.9f, 0.9f), 0.8f, 0.0f);
+	drawObjectPBR(models::windowContext, glm::translate(glm::vec3(2.f, -3.f, 5.0f)) * glm::scale(glm::vec3(2.f)), glm::vec3(0.402978f, 0.120509f, 0.057729f), 0.2f, 0.0f);
+	drawObjectPBR(models::deskContext, glm::translate(glm::vec3(2.f, -3.f, 5.0f)) * glm::scale(glm::vec3(2.f)), glm::vec3(0.428691f, 0.08022f, 0.036889f), 0.2f, 0.0f);
 	//drawObjectPBR(models::roomContext, glm::translate(glm::vec3(4.f, 0, 8.0f)), glm::vec3(0.9f, 0.9f, 0.9f), 0.8f, 0.0f);
 
 	// Disable depth testing if you want the boids to be drawn on top.
@@ -573,8 +573,8 @@ void processInput(GLFWwindow* window, float currentTime)
 {
 	glm::vec3 spaceshipSide = glm::normalize(glm::cross(spaceshipDir, glm::vec3(0.f, 1.f, 0.f)));
 	glm::vec3 spaceshipUp = glm::vec3(0.f, 1.f, 0.f);
-	float angleSpeed = 0.05f;
-	float moveSpeed = 0.010f;
+	float angleSpeed = 0.005f;
+	float moveSpeed = 0.04f;
 
 	// Używamy zmiennej pomocniczej proposedPos, zaczynając od aktualnej pozycji
 	glm::vec3 proposedPos = spaceshipPos;
@@ -615,8 +615,8 @@ void processInput(GLFWwindow* window, float currentTime)
 
 	// Ustal lokalny AABB dla statku
 	AABB sphereLocalBox;
-	sphereLocalBox.min = glm::vec3(-1.0f);
-	sphereLocalBox.max = glm::vec3(1.0f);
+	sphereLocalBox.min = glm::vec3(-0.5f);
+	sphereLocalBox.max = glm::vec3(0.5f);
 
 	// Dla Ziemi – używamy właściwej skali modelu zamiast [-1,1]  
 	AABB earthLocalBox;
@@ -632,28 +632,60 @@ void processInput(GLFWwindow* window, float currentTime)
 	sunLocalBox.min = glm::vec3(-0.5f);
 	sunLocalBox.max = glm::vec3(0.5f);
 
+	AABB wallLocalBox;
+	wallLocalBox.min = glm::vec3(-0.5f);
+	wallLocalBox.max = glm::vec3(0.5f);
+
+	AABB tableLocalBox;
+	tableLocalBox.min = glm::vec3(-0.1f);
+	tableLocalBox.max = glm::vec3(0.1f);
+
 	// Obliczamy modele dla obiektów, z którymi sprawdzamy kolizję
 	// Dla Ziemi – używamy tej samej kolejności co przy renderowaniu
 	glm::mat4 earthModel = glm::eulerAngleY(currentTime / 3) *
-		glm::translate(glm::vec3(4.f, 0, 0)) *
+		glm::translate(glm::vec3(6.f, 10.f, 0)) *
 		glm::scale(glm::vec3(0.3f));
 	AABB earthAABB = computeTransformedAABB(earthLocalBox, earthModel);
 
 	// Dla Księżyca
 	glm::mat4 moonModel = glm::eulerAngleY(currentTime / 3) *
-		glm::translate(glm::vec3(4.f, 0, 0)) *
+		glm::translate(glm::vec3(6.f, 10.f, 0)) *
 		glm::eulerAngleY(currentTime) *
 		glm::translate(glm::vec3(1.f, 0, 0)) *
 		glm::scale(glm::vec3(0.1f));
 	AABB moonAABB = computeTransformedAABB(moonLocalBox, moonModel);
 
 	// Dla Słońca
-	glm::mat4 sunModel = glm::translate(glm::vec3(0.f, 0.f, 0.f)) * glm::scale(glm::vec3(1.5f));
+	glm::mat4 sunModel = glm::translate(glm::vec3(-3.f, 10.f, 0.f)) * glm::scale(glm::vec3(1.5f));
 	AABB sunAABB = computeTransformedAABB(sunLocalBox, sunModel);
 
 	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
 	glm::mat4 proposedShipModel = glm::translate(proposedPos) * shipRotationMatrix;
 	AABB shipAABB = computeTransformedAABB(sphereLocalBox, proposedShipModel);
+
+	glm::mat4 wall_1Model = glm::translate(glm::vec3(-2.f, -3.f, 5.f)) * glm::scale(glm::vec3(0.05f, 10.f, 9.f));
+	AABB wall_1AABB = computeTransformedAABB(wallLocalBox, wall_1Model);
+
+	glm::mat4 wall_2Model = glm::translate(glm::vec3(6.f, -3.f, 5.f)) * glm::scale(glm::vec3(0.05f, 10.f, 9.f));
+	AABB wall_2AABB = computeTransformedAABB(wallLocalBox, wall_2Model);
+
+	glm::mat4 wall_3Model = glm::translate(glm::vec3(2.f, -3.f, 10.f)) * glm::scale(glm::vec3(6.f, 10.f, 0.05f));
+	AABB wall_3AABB = computeTransformedAABB(wallLocalBox, wall_3Model);
+
+	glm::mat4 wall_4Model = glm::translate(glm::vec3(2.f, 2.f, 5.f)) * glm::scale(glm::vec3(7.f, 0.05f, 7.f));	//sufit
+	AABB wall_4AABB = computeTransformedAABB(wallLocalBox, wall_4Model);
+
+	glm::mat4 wall_5Model = glm::translate(glm::vec3(-1.f, -3.f, 0.f)) * glm::scale(glm::vec3(3.f, 10.f, 0.05f));
+	AABB wall_5AABB = computeTransformedAABB(wallLocalBox, wall_5Model);
+
+	glm::mat4 wall_6Model = glm::translate(glm::vec3(4.f, -3.f, 0.f)) * glm::scale(glm::vec3(3.f, 10.f, 0.05f));
+	AABB wall_6AABB = computeTransformedAABB(wallLocalBox, wall_6Model);
+
+	glm::mat4 tableModel = glm::translate(glm::vec3(0.f, -2.f, 6.f)) * glm::scale(glm::vec3(5.f, 10.f, 12.f));
+	AABB tableAABB = computeTransformedAABB(tableLocalBox, tableModel);
+
+	glm::mat4 groundModel = glm::translate(glm::vec3(0.f, -4.f, 0.f)) * glm::scale(glm::vec3(100.f, 1.f, 100.f));
+	AABB groundAABB = computeTransformedAABB(wallLocalBox, groundModel);
 
 	glm::vec3 correction(0.f);
 	if (checkAABBCollision(shipAABB, earthAABB)) {
@@ -664,6 +696,31 @@ void processInput(GLFWwindow* window, float currentTime)
 	}
 	if (checkAABBCollision(shipAABB, sunAABB)) {
 		correction += computeMTV(shipAABB, sunAABB);
+	}
+	if (checkAABBCollision(shipAABB, wall_1AABB)) {
+		correction += computeMTV(shipAABB, wall_1AABB);
+	}
+	if (checkAABBCollision(shipAABB, wall_2AABB)) {
+		correction += computeMTV(shipAABB, wall_2AABB);
+	}
+	if (checkAABBCollision(shipAABB, wall_3AABB)) {
+		correction += computeMTV(shipAABB, wall_3AABB);
+	}
+	if (checkAABBCollision(shipAABB, wall_4AABB)) {
+		correction += computeMTV(shipAABB, wall_4AABB);
+	}
+
+	if (checkAABBCollision(shipAABB, wall_5AABB)) {
+		correction += computeMTV(shipAABB, wall_5AABB);
+	}
+	if (checkAABBCollision(shipAABB, wall_6AABB)) {
+		correction += computeMTV(shipAABB, wall_6AABB);
+	}
+	if (checkAABBCollision(shipAABB, tableAABB)) {
+		correction += computeMTV(shipAABB, tableAABB);
+	}
+	if (checkAABBCollision(shipAABB, groundAABB)) {
+		correction += computeMTV(shipAABB, groundAABB);
 	}
 
 	if (glm::length(correction) > 0.f) {
@@ -678,7 +735,6 @@ void processInput(GLFWwindow* window, float currentTime)
 	cameraPos = spaceshipPos - 1.5f * spaceshipDir + glm::vec3(0.f, 1.f, 0.f) * 0.5f;
 	cameraDir = glm::normalize(spaceshipPos - cameraPos);
 
-	//initBoids(50, 1000, 1000);
 }
 
 void shutdown(GLFWwindow* window)

@@ -12,9 +12,10 @@ float w_sep = 0.005;
 float w_al = 0.000001;
 float w_coh = 0.000001;
 float al_efect = 20.0;
-float coh_efect = 2.0;      //podobne do w_coh, ale troche inne
-float border = 10.0;        //granica swiata boidow
+float coh_efect = 4.0;      //podobne do w_coh, ale troche inne
+float border = 12.0;        //granica swiata boidow
 float velocity = 2.0;       //predkosc boidow
+float max_velocity = 0.01;
 
 int leader = 0;             //lider boidow
 
@@ -32,7 +33,7 @@ struct Boid {
         vx = d;
         vy = e;
         vz = f;
-        std::cout << "Boid nr" << ": "<< "(" << x << ", " << y << ", " << z << ")" << "\n";
+        //std::cout << "Boid nr" << ": "<< "(" << x << ", " << y << ", " << z << ")" << "\n";
     }
 };
 
@@ -41,10 +42,10 @@ std::vector<Boid> boids;
 void initBoids(int count, float width, float height, float depth) {
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_real_distribution<double> coords(-3, 3);               //generacja losowej pozycji
+    std::uniform_real_distribution<double> coords(-5, 5);               //generacja losowej pozycji
     boids.clear();
     for (int i = 0; i < count; i++) {
-        boids.emplace_back(coords(gen), coords(gen), coords(gen), 0.005, 0.005, 0.005);
+        boids.emplace_back(coords(gen), coords(gen), coords(gen), 0.005, 0.001, 0.007);
     }
 }
 
@@ -162,6 +163,15 @@ void update_boids() {
         boid.vy += F.y;
         boid.vz += F.z;
 
+        if (boid.vx > max_velocity) {
+            boid.vx = max_velocity;
+        }
+        if (boid.vy > max_velocity) {
+            boid.vy = max_velocity;
+        }
+        if (boid.vz > max_velocity) {
+            boid.vz = max_velocity;
+        }
 
         boid.x += boid.vx * velocity;
         boid.y += boid.vy * velocity;
