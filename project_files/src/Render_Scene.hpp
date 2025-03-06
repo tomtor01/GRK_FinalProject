@@ -22,6 +22,7 @@
 #include "SOIL/SOIL.h"
 
 
+
 namespace texture {
 	GLuint earth;
 	GLuint clouds;
@@ -64,6 +65,8 @@ int Boids_count = 20;
 float width = 10.0, heigth = 10.0, depth = 10.0;
 float aspectRatio = 1.f;
 Skybox* skybox = nullptr;
+
+int isNormal = 0, isShadow = 0;
 
 //for shadow mapping and PBR
 
@@ -359,29 +362,26 @@ void renderShadowMapSun() {
 	glm::mat4 modelMatrix = glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
 	glm::mat4 lightVP = glm::ortho(-10.f, 10.f, -10.f, 10.f, 1.0f, 30.f) * glm::lookAt(sunPos, sunPos - sunDir, glm::vec3(0, 1, 0));
 
-	//drawObjectDepth(shipContext, lightVP, glm::mat4());
-	drawObjectDepth(sphereContext, lightVP, glm::mat4());
-	drawObjectDepth(sphereContext, lightVP, glm::eulerAngleY(time / 3) *
-		glm::translate(glm::vec3(4.f, 0, 0)) *
-		glm::scale(glm::vec3(0.3f)));
-	drawObjectDepth(sphereContext, lightVP, glm::eulerAngleY(time / 3) *
-		glm::translate(glm::vec3(4.f, 0, 0)) *
-		glm::eulerAngleY(time) *
-		glm::translate(glm::vec3(1.f, 0, 0)) *
-		glm::scale(glm::vec3(0.1f)));
-	drawObjectDepth(models::roomContext, lightVP, glm::translate(glm::vec3(2.f, -3.f, 5.0f)));
-	drawObjectDepth(models::windowContext, lightVP, glm::translate(glm::vec3(2.f, -3.f, 5.0f)));
-	drawObjectDepth(models::deskContext, lightVP, glm::translate(glm::vec3(2.f, -3.f, 5.0f)));
+	if (isShadow == 0) {
+		drawObjectDepth(sphereContext, lightVP, glm::mat4());
+		drawObjectDepth(sphereContext, lightVP, glm::eulerAngleY(time / 3) *
+			glm::translate(glm::vec3(4.f, 0, 0)) *
+			glm::scale(glm::vec3(0.3f)));
+		drawObjectDepth(sphereContext, lightVP, glm::eulerAngleY(time / 3) *
+			glm::translate(glm::vec3(4.f, 0, 0)) *
+			glm::eulerAngleY(time) *
+			glm::translate(glm::vec3(1.f, 0, 0)) *
+			glm::scale(glm::vec3(0.1f)));
+		drawObjectDepth(models::roomContext, lightVP, glm::translate(glm::vec3(2.f, -3.f, 5.0f)));
+		drawObjectDepth(models::windowContext, lightVP, glm::translate(glm::vec3(2.f, -3.f, 5.0f)));
+		drawObjectDepth(models::deskContext, lightVP, glm::translate(glm::vec3(2.f, -3.f, 5.0f)));
 
-	glm::mat4 grassModel = glm::translate(glm::vec3(0.f, -3.f, 0.f)) *
-		glm::scale(glm::vec3(50.f, 1.f, 50.f));
+		glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
+		glm::mat4 shipModelPos = glm::translate(spaceshipPos) * shipRotationMatrix;
+		drawObjectDepth(shipContext, lightVP, shipModelPos);
+	}
 
-	//drawObjectDepth(groundContext, lightVP, grassModel);
 
-	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
-	glm::mat4 shipModelPos = glm::translate(spaceshipPos) * shipRotationMatrix;
-	drawObjectDepth(shipContext, lightVP, shipModelPos);
-	//drawObjectNormal(shipContext, shipModel, texture::ship, texture::shipNormal);
 
 
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -417,7 +417,14 @@ void renderScene(GLFWwindow* window, float currentTime)
 
 	glm::mat4 shipRotationMatrix = computeShipRotationMatrix();
 	glm::mat4 shipModel = glm::translate(spaceshipPos) * shipRotationMatrix;
-	drawObjectNormal(shipContext, shipModel, texture::ship, texture::shipNormal);
+	//drawObjectNormal(shipContext, shipModel, texture::ship, texture::shipNormal);
+
+	if (isNormal == 0) {
+		drawObjectNormal(shipContext, shipModel, texture::ship, texture::shipNormal);
+	}
+	else {
+		drawObjectTexture(shipContext, shipModel, texture::ship);
+	}
 
 	glm::mat4 sunModelMatrix = glm::translate(glm::vec3(0.f, 0.f, 0.f)) * glm::scale(glm::vec3(1.5f));
 	drawSunTexture(sphereContext, sunModelMatrix, texture::sun);
@@ -590,6 +597,21 @@ void processInput(GLFWwindow* window, float currentTime)
 		spaceshipDir = glm::vec3(glm::eulerAngleY(angleSpeed) * glm::vec4(spaceshipDir, 0));
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		spaceshipDir = glm::vec3(glm::eulerAngleY(-angleSpeed) * glm::vec4(spaceshipDir, 0));
+
+	//normal mapping switching
+	if (glfwGetKey(window, GLFW_KEY_N) == GLFW_PRESS) {
+		isNormal = 0;
+	}
+	if (glfwGetKey(window, GLFW_KEY_M) == GLFW_PRESS) {
+		isNormal = 1;
+	}
+	//shadow mapping switching
+	if (glfwGetKey(window, GLFW_KEY_V) == GLFW_PRESS) {
+		isShadow = 0;
+	}
+	if (glfwGetKey(window, GLFW_KEY_B) == GLFW_PRESS) {
+		isShadow = 1;
+	}
 
 	// Ustal lokalny AABB dla statku
 	AABB sphereLocalBox;
